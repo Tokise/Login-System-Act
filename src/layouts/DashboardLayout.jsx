@@ -74,7 +74,7 @@ export default function DashboardLayout() {
                     </div>
                     <button
                         onClick={() => logout()}
-                        className="flex w-full items-center justify-center gap-2 px-4 py-2.5 mt-2 text-sm font-medium text-white bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 rounded-xl shadow-lg shadow-red-900/20 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+                        className="flex w-full items-center justify-center gap-2 px-4 py-2.5 mt-2 text-sm font-medium text-white bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 rounded-xl shadow-lg shadow-red-900/20 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
                     >
                         <LogOut size={18} />
                         Logout
