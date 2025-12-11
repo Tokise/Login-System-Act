@@ -1,6 +1,6 @@
 import { Outlet, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, Users, Settings, LogOut, Menu, X, FileClock } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, LogOut, Menu, X, FileClock, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 
@@ -31,7 +31,12 @@ export default function DashboardLayout() {
                     }`}
             >
                 <div className="flex items-center justify-between p-4 border-b border-gray-800">
-                    <h1 className="text-xl font-bold tracking-tight">SecureSystem</h1>
+                    <div className="ml-8 flex items-center gap-3">
+                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-black">
+                            <ShieldCheck size={20} />
+                        </div>
+                        <h1 className="text-xl font-bold tracking-tight">AuthNexus</h1>
+                    </div>
                     <button onClick={toggleSidebar} className="lg:hidden p-1 rounded hover:bg-gray-800">
                         <X size={20} />
                     </button>

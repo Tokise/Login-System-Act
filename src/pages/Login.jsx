@@ -34,10 +34,12 @@ export default function Login() {
             <div className="hidden lg:flex w-1/2 bg-black text-white items-center justify-center p-12 relative overflow-hidden">
                 <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=2072&auto=format&fit=crop')] bg-cover bg-center opacity-20"></div>
                 <div className="relative z-10 max-w-md space-y-6">
-                    <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mb-8">
-                        <ShieldCheck className="text-black w-8 h-8" />
+                    <div className="flex items-center gap-6 mb-8">
+                        <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center">
+                            <ShieldCheck className="text-black w-8 h-8" />
+                        </div>
+                        <h1 className="text-5xl font-bold tracking-tight leading-tight">AuthNexus</h1>
                     </div>
-                    <h1 className="text-5xl font-bold tracking-tight leading-tight">Secure Access Portal</h1>
                     <p className="text-gray-400 text-lg">
                         Advanced security monitoring, user management, and activity logging in one centralized platform.
                     </p>
@@ -47,14 +49,7 @@ export default function Login() {
             {/* --- Right Side: Form --- */}
             <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-white">
                 <div className="w-full max-w-sm space-y-8">
-                    <div className="lg:hidden text-center mb-8">
-                        <h2 className="text-3xl font-bold">SecureSystem</h2>
-                    </div>
 
-                    <div>
-                        <h2 className="text-2xl font-bold tracking-tight text-gray-900">Welcome back</h2>
-                        <p className="text-gray-500 mt-2">Enter your credentials to access your account</p>
-                    </div>
 
                     <form onSubmit={handleSubmit} className="space-y-6">
                         <div className="space-y-4">

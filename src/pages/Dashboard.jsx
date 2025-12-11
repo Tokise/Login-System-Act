@@ -44,10 +44,10 @@ export default function Dashboard() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="bg-black text-white p-6 rounded-xl shadow-lg relative overflow-hidden">
                         <div className="relative z-10">
-                            <p className="text-gray-400 font-medium text-sm uppercase">Total Users</p>
+                            <p className="text-gray-300 font-medium text-sm uppercase">Total Users</p>
                             <h2 className="text-4xl font-bold mt-2">{stats.users}</h2>
                         </div>
-                        <Users className="absolute right-4 bottom-4 text-gray-800 w-16 h-16 opacity-50" />
+                        <Users className="absolute right-4 bottom-4 text-gray-400 w-16 h-16 opacity-50" />
                     </div>
 
                     <div className="bg-white border border-gray-200 p-6 rounded-xl shadow-sm relative overflow-hidden">
