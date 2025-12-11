@@ -94,19 +94,29 @@ async function logActivity(userId, username, action, details, req) {
 // --- Init DB ---
 async function initDB() {
     try {
-        const correctHash = await bcrypt.hash('Admin@12', 10);
-        const [rows] = await pool.query('SELECT * FROM users WHERE username = "admin"');
+        // Ensure password_resets table exists (We can keep this for future, or ignore it. Let's keep it but not use it.)
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS password_resets (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                token VARCHAR(255) NOT NULL,
+                expires_at DATETIME NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        `);
 
-        if (rows.length === 0) {
-            const email = 'admin@local.com';
-            await pool.query(
-                'INSERT INTO users (username, email, email_hash, password_hash, role, level, restrictions, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                ['super_admin', encrypt(email), hashEmail(email), correctHash, 'super_admin', 'super_admin', JSON.stringify([]), 'active']
-            );
-            console.log('Super Admin initialized: admin@local.com / Admin@12');
-        } else {
-            console.log('DB Connected. Super Admin exists.');
-        }
+        const correctHash = await bcrypt.hash('Admin@12', 10);
+
+        // Use INSERT IGNORE to prevent crashes on duplicates
+        const email = 'admin@local.com';
+        await pool.query(
+            `INSERT IGNORE INTO users (username, email, email_hash, password_hash, role, level, restrictions, status) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            ['super_admin', encrypt(email), hashEmail(email), correctHash, 'super_admin', 'super_admin', JSON.stringify([]), 'active']
+        );
+        console.log('DB Initialized. Super Admin guaranteed.');
+
     } catch (err) {
         console.error('DB Init Error:', err);
     }
@@ -114,6 +124,53 @@ async function initDB() {
 initDB();
 
 // --- Authentication Routes ---
+
+// Direct Password Reset (No Token) - For User Convenience (Weak Security, Demo only)
+app.post('/api/reset-password-direct', async (req, res) => {
+    let { username, email, newPassword } = req.body;
+
+    if (!username || !email || !newPassword) {
+        return res.status(400).json({ error: 'All fields are required.' });
+    }
+
+    username = username.trim();
+    email = email.trim();
+
+    try {
+        // 1. Verify User Exists by Username (Whitespace insensitive)
+        // We use LIKE to be case-insensitive and we'll trim DB side if needed, 
+        // but for now let's just try to match TRIM(username)
+        const [users] = await pool.query('SELECT * FROM users WHERE TRIM(username) = ?', [username]);
+
+        if (users.length === 0) return res.status(400).json({ error: 'Invalid details (User not found)' });
+        const user = users[0];
+
+        // 2. Verify Email Matches
+        const providedHash = hashEmail(email);
+
+        // Debugging for User:
+        if (user.email_hash !== providedHash) {
+            console.log(`Email Mismatch! Stored Hash vs Input Hash`);
+            return res.status(400).json({ error: 'Invalid details (Email mismatch)' });
+        }
+
+        // 3. Check Lock Status
+        if (user.status === 'locked') {
+            return res.status(403).json({ error: 'Account is locked. Cannot reset password.' });
+        }
+
+        // 4. Update Password and Reset Attempts
+        const hash = await bcrypt.hash(newPassword, 10);
+        await pool.query('UPDATE users SET password_hash = ?, failed_attempts = 0 WHERE id = ?', [hash, user.id]);
+
+        await logActivity(user.id, user.username, 'PASSWORD_RESET', 'User reset password (Direct)', req);
+
+        res.json({ success: true, message: 'Password reset successful.' });
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
 app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
