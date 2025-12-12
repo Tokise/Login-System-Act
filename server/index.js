@@ -115,7 +115,7 @@ async function initDB() {
              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
             ['super_admin', encrypt(email), hashEmail(email), correctHash, 'super_admin', 'super_admin', JSON.stringify([]), 'active']
         );
-        console.log('DB Initialized. Super Admin guaranteed.');
+        console.log('DB Initialized. admin@local.com / Admin@12.');
 
     } catch (err) {
         console.error('DB Init Error:', err);
