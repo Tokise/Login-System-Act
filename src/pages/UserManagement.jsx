@@ -4,7 +4,7 @@ import { mockApi } from '../services/mockApi';
 import { toast } from 'sonner';
 import {
     Search, Plus, MoreVertical, Shield, ShieldAlert,
-    Edit2, Archive, Unlock, Lock, User as UserIcon, X, Eye, FileClock, ShieldCheck
+    Edit2, Archive, Unlock, Lock, User as UserIcon, X, Eye, EyeOff, FileClock, ShieldCheck
 } from 'lucide-react';
 
 export default function UserManagement() {
@@ -12,8 +12,26 @@ export default function UserManagement() {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const USERS_PER_PAGE = 5;
+
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentUser, setCurrentUser] = useState(null);
+    const [showPassword, setShowPassword] = useState(false);
+
+    // --- Permissions Logic ---
+    const myRestrictions = (() => {
+        if (loggedInUser?.level === 'super_admin') return ['view', 'add', 'edit'];
+        try {
+            const res = typeof loggedInUser?.restrictions === 'string'
+                ? JSON.parse(loggedInUser.restrictions)
+                : (loggedInUser?.restrictions || []);
+            return Array.isArray(res) ? res : [];
+        } catch { return []; }
+    })();
+
+    const canAdd = myRestrictions.includes('add');
+    const canEdit = myRestrictions.includes('edit');
 
     // --- Form State ---
     const [responseData, setResponseData] = useState({
@@ -62,6 +80,14 @@ export default function UserManagement() {
     useEffect(() => {
         fetchUsers();
     }, []);
+
+    // --- Stats Calculation ---
+    const stats = {
+        admins: users.filter(u => u.role === 'admin' || u.level === 'super_admin').length,
+        regular: users.filter(u => u.role === 'user' && u.level !== 'super_admin').length,
+        locked: users.filter(u => u.status === 'locked').length,
+        archived: users.filter(u => u.status === 'archived').length
+    };
 
     // --- Modal Logic ---
     const handleOpenModal = (user = null) => {
@@ -159,10 +185,31 @@ export default function UserManagement() {
         } catch (err) { toast.error('Action failed'); }
     };
 
-    const filteredUsers = users.filter(u =>
-        u.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        u.email.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredUsers = users.filter(u => {
+        if (!searchTerm) return false; // SECURITY: Don't show anything providing there is no search
+
+        const searchLower = searchTerm.toLowerCase();
+        const roleStr = u.level === 'super_admin' ? 'super admin' : u.role || '';
+        const statusStr = u.status || '';
+        const restrictionsStr = Array.isArray(u.restrictions) ? u.restrictions.join(' ') : (typeof u.restrictions === 'string' ? u.restrictions : '');
+
+        return (
+            u.username.toLowerCase().includes(searchLower) ||
+            u.email.toLowerCase().includes(searchLower) ||
+            roleStr.toLowerCase().includes(searchLower) ||
+            statusStr.toLowerCase().includes(searchLower) ||
+            restrictionsStr.toLowerCase().includes(searchLower)
+        );
+    });
+
+    // --- Pagination Logic ---
+    const totalPages = Math.ceil(filteredUsers.length / USERS_PER_PAGE);
+    const displayUsers = filteredUsers.slice((currentPage - 1) * USERS_PER_PAGE, currentPage * USERS_PER_PAGE);
+
+    // Reset page on search
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm]);
 
     // --- View Details Logic ---
     const [viewData, setViewData] = useState(null);
@@ -170,10 +217,7 @@ export default function UserManagement() {
 
     const handleViewUser = async (user) => {
         try {
-            const allLogs = await mockApi.getLogs();
-            const userLogs = allLogs.filter(log => log.username_snapshot === user.username);
-            const latestLog = userLogs.length > 0 ? userLogs[0] : null;
-
+            const latestLog = await mockApi.getLatestLog(user.id);
             setViewData({ user, latestLog });
             setIsViewModalOpen(true);
         } catch (err) {
@@ -188,13 +232,56 @@ export default function UserManagement() {
                     <h1 className="text-2xl font-bold tracking-tight">User Management</h1>
                     <p className="text-gray-500">Manage access, roles, and account status.</p>
                 </div>
-                <button
-                    onClick={() => handleOpenModal()}
-                    className="bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors flex items-center gap-2 cursor-pointer"
-                >
-                    <Plus size={18} />
-                    Add User
-                </button>
+
+                {canAdd && (
+                    <button
+                        onClick={() => handleOpenModal()}
+                        className="bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors flex items-center gap-2 cursor-pointer"
+                    >
+                        <Plus size={18} />
+                        Add User
+                    </button>
+                )}
+            </div>
+
+            {/* --- Stats Cards --- */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center gap-4">
+                    <div className="p-3 bg-purple-100 text-purple-600 rounded-lg">
+                        <Shield size={24} />
+                    </div>
+                    <div>
+                        <p className="text-sm font-medium text-gray-500">Admins</p>
+                        <p className="text-2xl font-bold">{stats.admins}</p>
+                    </div>
+                </div>
+                <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center gap-4">
+                    <div className="p-3 bg-green-100 text-green-600 rounded-lg">
+                        <UserIcon size={24} />
+                    </div>
+                    <div>
+                        <p className="text-sm font-medium text-gray-500">Regular Users</p>
+                        <p className="text-2xl font-bold">{stats.regular}</p>
+                    </div>
+                </div>
+                <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center gap-4">
+                    <div className="p-3 bg-red-100 text-red-600 rounded-lg">
+                        <Lock size={24} />
+                    </div>
+                    <div>
+                        <p className="text-sm font-medium text-gray-500">Locked</p>
+                        <p className="text-2xl font-bold">{stats.locked}</p>
+                    </div>
+                </div>
+                <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center gap-4">
+                    <div className="p-3 bg-gray-100 text-gray-600 rounded-lg">
+                        <Archive size={24} />
+                    </div>
+                    <div>
+                        <p className="text-sm font-medium text-gray-500">Archived</p>
+                        <p className="text-2xl font-bold">{stats.archived}</p>
+                    </div>
+                </div>
             </div>
 
             <div className="relative max-w-md">
@@ -226,7 +313,7 @@ export default function UserManagement() {
                             ) : filteredUsers.length === 0 ? (
                                 <tr><td colSpan="5" className="p-8 text-center text-gray-500">No users found.</td></tr>
                             ) : (
-                                filteredUsers.map(user => (
+                                displayUsers.map(user => (
                                     <tr key={user.id} className="hover:bg-gray-50/50 transition-colors">
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-3">
@@ -274,251 +361,298 @@ export default function UserManagement() {
                                             )}
                                         </td>
                                         <td className="px-6 py-4 text-right">
-                                            {user.level !== 'super_admin' && (
-                                                <div className="flex items-center justify-end gap-2">
-                                                    {user.status === 'locked' && (
-                                                        <button onClick={() => handleUnlock(user.id)} title="Unlock Account" className="p-2 text-yellow-600 hover:bg-yellow-50 rounded-lg cursor-pointer">
-                                                            <Unlock size={18} />
+                                            {/* Hide ALL actions for the logged-in user to prevent accidental self-edits */}
+                                            {/* ALSO Hide actions if loggedInUser is regular Admin and target is also Admin */}
+                                            {user.level !== 'super_admin' &&
+                                                user.id !== loggedInUser.id &&
+                                                !(loggedInUser.level !== 'super_admin' && user.role === 'admin') && (
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        {user.status === 'locked' && canEdit && (
+                                                            <button onClick={() => handleUnlock(user.id)} title="Unlock Account" className="p-2 text-yellow-600 hover:bg-yellow-50 rounded-lg cursor-pointer">
+                                                                <Unlock size={18} />
+                                                            </button>
+                                                        )}
+                                                        <button onClick={() => handleViewUser(user)} title="View Detail" className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg cursor-pointer">
+                                                            <Eye size={18} />
                                                         </button>
-                                                    )}
-                                                    <button onClick={() => handleViewUser(user)} title="View Detail" className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg cursor-pointer">
-                                                        <Eye size={18} />
-                                                    </button>
-                                                    <button onClick={() => handleOpenModal(user)} title="Edit" className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg cursor-pointer">
-                                                        <Edit2 size={18} />
-                                                    </button>
-                                                    <button onClick={() => handleToggleArchive(user)} title={user.status === 'archived' ? 'Restore' : 'Archive'} className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg cursor-pointer">
-                                                        {user.status === 'archived' ? <ShieldCheck size={18} /> : <Archive size={18} />}
-                                                    </button>
-                                                </div>
-                                            )}
+                                                        {canEdit && (
+                                                            <>
+                                                                <button onClick={() => handleOpenModal(user)} title="Edit" className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg cursor-pointer">
+                                                                    <Edit2 size={18} />
+                                                                </button>
+                                                                <button onClick={() => handleToggleArchive(user)} title={user.status === 'archived' ? 'Restore' : 'Archive'} className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg cursor-pointer">
+                                                                    {user.status === 'archived' ? <ShieldCheck size={18} /> : <Archive size={18} />}
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                )}
                                         </td>
                                     </tr>
                                 ))
                             )}
                         </tbody>
+
                     </table>
+
+                    {/* --- Pagination Controls --- */}
+                    {totalPages > 1 && (
+                        <div className="flex items-center justify-between p-4 border-t border-gray-200 bg-gray-50/50">
+                            <span className="text-sm text-gray-500">
+                                Showing {((currentPage - 1) * USERS_PER_PAGE) + 1} to {Math.min(currentPage * USERS_PER_PAGE, filteredUsers.length)} of {filteredUsers.length} users
+                            </span>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={currentPage === 1}
+                                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Previous
+                                </button>
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={currentPage === totalPages}
+                                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Next
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 
             {/* --- Add/Edit Modal --- */}
-            {isModalOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
-                        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-                            <h2 className="text-xl font-bold">{currentUser ? 'Edit User' : 'Create User'}</h2>
-                            <button onClick={() => setIsModalOpen(false)} className="p-1 hover:bg-gray-100 rounded-md cursor-pointer"><X size={20} /></button>
-                        </div>
-
-                        <form onSubmit={handleSaveUser} className="p-6 space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <label className="text-sm font-medium">Username</label>
-                                    <input
-                                        type="text"
-                                        value={responseData.username}
-                                        onChange={e => setResponseData({ ...responseData, username: e.target.value })}
-                                        disabled={!!currentUser}
-                                        className="w-full p-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-black outline-none disabled:bg-gray-100"
-                                        required
-                                    />
-                                </div>
-                                <div className="space-y-1">
-                                    <label className="text-sm font-medium">Email</label>
-                                    <input
-                                        type="email"
-                                        value={responseData.email}
-                                        onChange={e => setResponseData({ ...responseData, email: e.target.value })}
-                                        className="w-full p-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-black outline-none"
-                                        required
-                                    />
-                                </div>
+            {
+                isModalOpen && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                        <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
+                            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                                <h2 className="text-xl font-bold">{currentUser ? 'Edit User' : 'Create User'}</h2>
+                                <button onClick={() => setIsModalOpen(false)} className="p-1 hover:bg-gray-100 rounded-md cursor-pointer"><X size={20} /></button>
                             </div>
 
-                            {!currentUser && (
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium">Password</label>
-                                    <input
-                                        type="password"
-                                        value={responseData.password}
-                                        onChange={e => {
-                                            const val = e.target.value;
-                                            setResponseData({ ...responseData, password: val });
-                                            checkPassword(val);
-                                        }}
-                                        maxLength={8}
-                                        className="w-full p-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-black outline-none"
-                                        required
-                                        placeholder="Exactly 8 characters"
-                                    />
-                                    {/* Strength UI */}
-                                    <div className="bg-gray-50 p-3 rounded-lg space-y-3">
-                                        <div className="space-y-1">
-                                            <div className="flex items-center justify-between text-xs">
-                                                <span className={`font-medium ${Object.values(passwordRequirements).filter(Boolean).length === 5 ? 'text-green-600' : 'text-gray-500'}`}>
-                                                    Strength: {['Weak', 'Weak', 'Fair', 'Good', 'Strong', 'Excellent'][Object.values(passwordRequirements).filter(Boolean).length]}
-                                                </span>
-                                                <span className="text-gray-400">{responseData.password.length}/8 chars</span>
-                                            </div>
-                                            <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
-                                                <div
-                                                    className={`h-full transition-all duration-300 ${Object.values(passwordRequirements).filter(Boolean).length === 5 ? 'bg-green-500' :
-                                                        Object.values(passwordRequirements).filter(Boolean).length > 2 ? 'bg-yellow-500' : 'bg-red-500'
-                                                        }`}
-                                                    style={{ width: `${(Object.values(passwordRequirements).filter(Boolean).length / 5) * 100}%` }}
-                                                />
-                                            </div>
+                            <form onSubmit={handleSaveUser} className="p-6 space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-sm font-medium">Username</label>
+                                        <input
+                                            type="text"
+                                            value={responseData.username}
+                                            onChange={e => setResponseData({ ...responseData, username: e.target.value })}
+                                            disabled={!!currentUser}
+                                            className="w-full p-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-black outline-none disabled:bg-gray-100"
+                                            required
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-sm font-medium">Email</label>
+                                        <input
+                                            type="email"
+                                            value={responseData.email}
+                                            onChange={e => setResponseData({ ...responseData, email: e.target.value })}
+                                            className="w-full p-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-black outline-none"
+                                            required
+                                        />
+                                    </div>
+                                </div>
+
+                                {!currentUser && (
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium">Password</label>
+                                        <div className="relative">
+                                            <input
+                                                type={showPassword ? "text" : "password"}
+                                                value={responseData.password}
+                                                onChange={e => {
+                                                    const val = e.target.value;
+                                                    setResponseData({ ...responseData, password: val });
+                                                    checkPassword(val);
+                                                }}
+                                                maxLength={8}
+                                                className="w-full p-2 pr-10 border border-gray-200 rounded-lg focus:ring-1 focus:ring-black outline-none"
+                                                required
+                                                placeholder="Exactly 8 characters"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowPassword(!showPassword)}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black transition-colors cursor-pointer"
+                                            >
+                                                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                            </button>
                                         </div>
-                                        <div className="grid grid-cols-2 gap-2 text-xs text-gray-500">
-                                            <div className={`flex items-center gap-1 ${passwordRequirements.length ? 'text-green-600' : ''}`}>
-                                                <div className={`w-1.5 h-1.5 rounded-full ${passwordRequirements.length ? 'bg-green-500' : 'bg-gray-300'}`} /> Exactly 8 Chars
+                                        {/* Strength UI */}
+                                        <div className="bg-gray-50 p-3 rounded-lg space-y-3">
+                                            <div className="space-y-1">
+                                                <div className="flex items-center justify-between text-xs">
+                                                    <span className={`font-medium ${Object.values(passwordRequirements).filter(Boolean).length === 5 ? 'text-green-600' : 'text-gray-500'}`}>
+                                                        Strength: {['Weak', 'Weak', 'Fair', 'Good', 'Strong', 'Excellent'][Object.values(passwordRequirements).filter(Boolean).length]}
+                                                    </span>
+                                                    <span className="text-gray-400">{responseData.password.length}/8 chars</span>
+                                                </div>
+                                                <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
+                                                    <div
+                                                        className={`h-full transition-all duration-300 ${Object.values(passwordRequirements).filter(Boolean).length === 5 ? 'bg-green-500' :
+                                                            Object.values(passwordRequirements).filter(Boolean).length > 2 ? 'bg-yellow-500' : 'bg-red-500'
+                                                            }`}
+                                                        style={{ width: `${(Object.values(passwordRequirements).filter(Boolean).length / 5) * 100}%` }}
+                                                    />
+                                                </div>
                                             </div>
-                                            <div className={`flex items-center gap-1 ${passwordRequirements.upper ? 'text-green-600' : ''}`}>
-                                                <div className={`w-1.5 h-1.5 rounded-full ${passwordRequirements.upper ? 'bg-green-500' : 'bg-gray-300'}`} /> 1 Uppercase
-                                            </div>
-                                            <div className={`flex items-center gap-1 ${passwordRequirements.lower ? 'text-green-600' : ''}`}>
-                                                <div className={`w-1.5 h-1.5 rounded-full ${passwordRequirements.lower ? 'bg-green-500' : 'bg-gray-300'}`} /> 1 Lowercase
-                                            </div>
-                                            <div className={`flex items-center gap-1 ${passwordRequirements.number ? 'text-green-600' : ''}`}>
-                                                <div className={`w-1.5 h-1.5 rounded-full ${passwordRequirements.number ? 'bg-green-500' : 'bg-gray-300'}`} /> 1 Number
-                                            </div>
-                                            <div className={`flex items-center gap-1 ${passwordRequirements.special ? 'text-green-600' : ''}`}>
-                                                <div className={`w-1.5 h-1.5 rounded-full ${passwordRequirements.special ? 'bg-green-500' : 'bg-gray-300'}`} /> 1 Special
+                                            <div className="grid grid-cols-2 gap-2 text-xs text-gray-500">
+                                                <div className={`flex items-center gap-1 ${passwordRequirements.length ? 'text-green-600' : ''}`}>
+                                                    <div className={`w-1.5 h-1.5 rounded-full ${passwordRequirements.length ? 'bg-green-500' : 'bg-gray-300'}`} /> Exactly 8 Chars
+                                                </div>
+                                                <div className={`flex items-center gap-1 ${passwordRequirements.upper ? 'text-green-600' : ''}`}>
+                                                    <div className={`w-1.5 h-1.5 rounded-full ${passwordRequirements.upper ? 'bg-green-500' : 'bg-gray-300'}`} /> 1 Uppercase
+                                                </div>
+                                                <div className={`flex items-center gap-1 ${passwordRequirements.lower ? 'text-green-600' : ''}`}>
+                                                    <div className={`w-1.5 h-1.5 rounded-full ${passwordRequirements.lower ? 'bg-green-500' : 'bg-gray-300'}`} /> 1 Lowercase
+                                                </div>
+                                                <div className={`flex items-center gap-1 ${passwordRequirements.number ? 'text-green-600' : ''}`}>
+                                                    <div className={`w-1.5 h-1.5 rounded-full ${passwordRequirements.number ? 'bg-green-500' : 'bg-gray-300'}`} /> 1 Number
+                                                </div>
+                                                <div className={`flex items-center gap-1 ${passwordRequirements.special ? 'text-green-600' : ''}`}>
+                                                    <div className={`w-1.5 h-1.5 rounded-full ${passwordRequirements.special ? 'bg-green-500' : 'bg-gray-300'}`} /> 1 Special
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-                            )}
+                                )}
 
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium">Role</label>
-                                <div className="flex gap-4 p-3 border border-gray-100 rounded-lg bg-gray-50/50">
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={responseData.role === 'user'}
-                                            onChange={() => setResponseData({ ...responseData, role: 'user' })}
-                                            className="rounded text-black focus:ring-black"
-                                        />
-                                        <span className="text-sm font-medium">Regular User</span>
-                                    </label>
-                                    {loggedInUser?.level === 'super_admin' && (
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Role</label>
+                                    <div className="flex gap-4 p-3 border border-gray-100 rounded-lg bg-gray-50/50">
                                         <label className="flex items-center gap-2 cursor-pointer">
                                             <input
                                                 type="checkbox"
-                                                checked={responseData.role === 'admin'}
-                                                onChange={() => setResponseData({ ...responseData, role: 'admin' })}
+                                                checked={responseData.role === 'user'}
+                                                onChange={() => setResponseData({ ...responseData, role: 'user' })}
                                                 className="rounded text-black focus:ring-black"
                                             />
-                                            <span className="text-sm font-medium">Admin</span>
+                                            <span className="text-sm font-medium">Regular User</span>
                                         </label>
+                                        {loggedInUser?.level === 'super_admin' && (
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={responseData.role === 'admin'}
+                                                    onChange={() => setResponseData({ ...responseData, role: 'admin' })}
+                                                    className="rounded text-black focus:ring-black"
+                                                />
+                                                <span className="text-sm font-medium">Admin</span>
+                                            </label>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Restrictions</label>
+                                    <div className="flex gap-4 p-3 border border-gray-100 rounded-lg bg-gray-50/50">
+                                        {['view', 'add', 'edit'].map((res) => {
+                                            const isChecked = responseData.restrictions.includes(res);
+                                            const isView = res === 'view';
+                                            let isDisabled = isView;
+                                            if (res === 'add' && responseData.restrictions.includes('edit')) isDisabled = true;
+                                            if (res === 'edit' && responseData.restrictions.includes('add')) isDisabled = true;
+
+                                            return (
+                                                <label key={res} className={`flex items-center gap-2 ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isChecked}
+                                                        onChange={() => !isDisabled && toggleRestriction(res)}
+                                                        disabled={isDisabled}
+                                                        className="rounded text-black focus:ring-black"
+                                                    />
+                                                    <span className="capitalize text-sm font-medium">{res}</span>
+                                                </label>
+                                            );
+                                        })}
+                                    </div>
+                                    <p className="text-xs text-gray-400">* 'View' is mandatory. 'Add' and 'Edit' cannot be assigned together.</p>
+                                </div>
+
+                                <div className="pt-4 flex justify-end gap-3">
+                                    <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg cursor-pointer">Cancel</button>
+                                    <button type="submit" className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 cursor-pointer">Save User</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* --- View Details Modal --- */}
+            {
+                isViewModalOpen && viewData && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                        <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+                            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+                                <h2 className="text-lg font-bold">User Details</h2>
+                                <button onClick={() => setIsViewModalOpen(false)} className="p-1 hover:bg-gray-200 rounded-md cursor-pointer"><X size={20} /></button>
+                            </div>
+
+                            <div className="p-6 space-y-6">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-16 h-16 rounded-full bg-black text-white flex items-center justify-center text-3xl font-bold">
+                                        {viewData.user.username.charAt(0).toUpperCase()}
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-bold">{viewData.user.username}</h3>
+                                        <p className="text-gray-500">{viewData.user.email}</p>
+                                        <div className="flex items-center gap-2 mt-2">
+                                            <span className={`text-xs px-2 py-1 rounded-full font-medium ${viewData.user.level === 'super_admin' ? 'bg-purple-100 text-purple-800' :
+                                                viewData.user.role === 'admin' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
+                                                }`}>
+                                                {viewData.user.level === 'super_admin' ? 'Super Admin' : viewData.user.role === 'admin' ? 'Admin' : 'Regular User'}
+                                            </span>
+                                            <span className={`text-xs px-2 py-1 rounded-full font-medium ${viewData.user.status === 'active' ? 'bg-teal-100 text-teal-800' :
+                                                viewData.user.status === 'locked' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'
+                                                }`}>
+                                                {viewData.user.status}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <hr className="border-gray-100" />
+
+                                <div>
+                                    <h4 className="text-sm font-bold text-gray-800 mb-3 uppercase tracking-wider">Latest Activity</h4>
+                                    {viewData.latestLog ? (
+                                        <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                                            <div className="flex items-start gap-3">
+                                                <div className="p-2 bg-white rounded-md shadow-sm text-black">
+                                                    <FileClock size={18} />
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-bold text-gray-900">{viewData.latestLog.action}</p>
+                                                    <p className="text-xs text-gray-500 mt-1">{viewData.latestLog.details}</p>
+                                                    <p className="text-[10px] text-gray-400 mt-2 font-mono">
+                                                        {new Date(viewData.latestLog.timestamp).toLocaleString()}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-6 bg-gray-50 rounded-lg border border-dashed border-gray-200">
+                                            <p className="text-sm text-gray-400">No recent activity recorded.</p>
+                                        </div>
                                     )}
                                 </div>
                             </div>
 
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium">Restrictions</label>
-                                <div className="flex gap-4 p-3 border border-gray-100 rounded-lg bg-gray-50/50">
-                                    {['view', 'add', 'edit'].map((res) => {
-                                        const isChecked = responseData.restrictions.includes(res);
-                                        const isView = res === 'view';
-                                        let isDisabled = isView;
-                                        if (res === 'add' && responseData.restrictions.includes('edit')) isDisabled = true;
-                                        if (res === 'edit' && responseData.restrictions.includes('add')) isDisabled = true;
-
-                                        return (
-                                            <label key={res} className={`flex items-center gap-2 ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
-                                                <input
-                                                    type="checkbox"
-                                                    checked={isChecked}
-                                                    onChange={() => !isDisabled && toggleRestriction(res)}
-                                                    disabled={isDisabled}
-                                                    className="rounded text-black focus:ring-black"
-                                                />
-                                                <span className="capitalize text-sm font-medium">{res}</span>
-                                            </label>
-                                        );
-                                    })}
-                                </div>
-                                <p className="text-xs text-gray-400">* 'View' is mandatory. 'Add' and 'Edit' cannot be assigned together.</p>
+                            <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+                                <button onClick={() => setIsViewModalOpen(false)} className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 text-sm font-medium cursor-pointer">
+                                    Close
+                                </button>
                             </div>
-
-                            <div className="pt-4 flex justify-end gap-3">
-                                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg cursor-pointer">Cancel</button>
-                                <button type="submit" className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 cursor-pointer">Save User</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* --- View Details Modal --- */}
-            {isViewModalOpen && viewData && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
-                        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50">
-                            <h2 className="text-lg font-bold">User Details</h2>
-                            <button onClick={() => setIsViewModalOpen(false)} className="p-1 hover:bg-gray-200 rounded-md cursor-pointer"><X size={20} /></button>
-                        </div>
-
-                        <div className="p-6 space-y-6">
-                            <div className="flex items-center gap-4">
-                                <div className="w-16 h-16 rounded-full bg-black text-white flex items-center justify-center text-3xl font-bold">
-                                    {viewData.user.username.charAt(0).toUpperCase()}
-                                </div>
-                                <div>
-                                    <h3 className="text-xl font-bold">{viewData.user.username}</h3>
-                                    <p className="text-gray-500">{viewData.user.email}</p>
-                                    <div className="flex items-center gap-2 mt-2">
-                                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${viewData.user.level === 'super_admin' ? 'bg-purple-100 text-purple-800' :
-                                            viewData.user.role === 'admin' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
-                                            }`}>
-                                            {viewData.user.level === 'super_admin' ? 'Super Admin' : viewData.user.role === 'admin' ? 'Admin' : 'Regular User'}
-                                        </span>
-                                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${viewData.user.status === 'active' ? 'bg-teal-100 text-teal-800' :
-                                            viewData.user.status === 'locked' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'
-                                            }`}>
-                                            {viewData.user.status}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <hr className="border-gray-100" />
-
-                            <div>
-                                <h4 className="text-sm font-bold text-gray-800 mb-3 uppercase tracking-wider">Latest Activity</h4>
-                                {viewData.latestLog ? (
-                                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
-                                        <div className="flex items-start gap-3">
-                                            <div className="p-2 bg-white rounded-md shadow-sm text-black">
-                                                <FileClock size={18} />
-                                            </div>
-                                            <div>
-                                                <p className="text-sm font-bold text-gray-900">{viewData.latestLog.action}</p>
-                                                <p className="text-xs text-gray-500 mt-1">{viewData.latestLog.details}</p>
-                                                <p className="text-[10px] text-gray-400 mt-2 font-mono">
-                                                    {new Date(viewData.latestLog.timestamp).toLocaleString()}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="text-center py-6 bg-gray-50 rounded-lg border border-dashed border-gray-200">
-                                        <p className="text-sm text-gray-400">No recent activity recorded.</p>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end">
-                            <button onClick={() => setIsViewModalOpen(false)} className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 text-sm font-medium cursor-pointer">
-                                Close
-                            </button>
                         </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 }

@@ -72,9 +72,21 @@ export default function Dashboard() {
                         <ShieldCheck size={40} className="text-green-600" />
                     </div>
                     <h2 className="text-2xl font-bold mb-2">Account Status: Active</h2>
-                    <p className="text-gray-500 max-w-md mx-auto">
-                        You have limited access. Contact the Super Admin if you need additional permissions.
-                    </p>
+                    {user.role === 'admin' ? (
+                        <div className="mt-6">
+                            <p className="text-gray-500 max-w-md mx-auto mb-6">
+                                You have administrative access to manage users based on your assigned restrictions.
+                            </p>
+                            <a href="/users" className="inline-flex items-center gap-2 bg-black text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-all font-medium">
+                                <Users size={20} />
+                                Manage Users
+                            </a>
+                        </div>
+                    ) : (
+                        <p className="text-gray-500 max-w-md mx-auto">
+                            You have limited access. Contact the Super Admin if you need additional permissions.
+                        </p>
+                    )}
                 </div>
             )}
 

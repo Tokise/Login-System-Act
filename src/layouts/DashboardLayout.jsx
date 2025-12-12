@@ -1,7 +1,7 @@
 import { Outlet, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { LayoutDashboard, Users, Settings, LogOut, Menu, X, FileClock, ShieldCheck } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 
 export default function DashboardLayout() {
@@ -9,15 +9,30 @@ export default function DashboardLayout() {
     const [isSidebarOpen, setSidebarOpen] = useState(true);
     const location = useLocation();
 
+    // Prevent back button - Reload site
+    useEffect(() => {
+        window.history.pushState(null, document.title, window.location.href);
+        const handlePopState = () => {
+            window.history.pushState(null, document.title, window.location.href);
+            window.location.reload();
+        };
+
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
+    }, []);
+
     if (!user) return <Navigate to="/login" state={{ from: location }} replace />;
 
     const toggleSidebar = () => setSidebarOpen(!isSidebarOpen);
 
     const navItems = [
         { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-        // Only Super Admin sends Settings/Users/Logs
-        ...(user.level === 'super_admin' ? [
+        // Allow Admin to see User Management limited to restrictions
+        ...((user.level === 'super_admin' || user.role === 'admin') ? [
             { icon: Users, label: 'User Management', path: '/users' },
+        ] : []),
+        // Only Super Admin sees Logs
+        ...(user.level === 'super_admin' ? [
             { icon: FileClock, label: 'Activity Logs', path: '/logs' },
         ] : []),
         { icon: Settings, label: 'Settings', path: '/settings' },

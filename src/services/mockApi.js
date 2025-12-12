@@ -65,6 +65,12 @@ export const mockApi = {
         return await res.json();
     },
 
+    getLatestLog: async (userId) => {
+        const res = await fetch(`${API_URL}/users/${userId}/logs/latest`, { headers: getHeaders() });
+        if (!res.ok) return null;
+        return await res.json();
+    },
+
     logActivity: async (logData) => {
         // Handled by backend.
     }
