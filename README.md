@@ -56,21 +56,47 @@ A comprehensive, production-ready User Management System built with **React (Vit
 - Node.js (v18+)
 - MySQL Server (e.g., XAMPP, MySQL Workbench)
 
-### 1. Database Setup
+### 1. Clone the Repository
+```bash
+git clone https://github.com/Tokise/Login-System-Act.git
+cd Login-System-Activity
+```
+
+### 2. Install Dependencies
+This project uses **Vite** as the build tool. Running the install command will set up all necessary packages including React, Vite, Tailwind CSS, and backend dependencies.
+
+```bash
+npm install
+npm install vite@latest
+npm install @vitejs/plugin-react@latest
+npm install react@latest react-dom@latest
+npm install tailwindcss@latest postcss@latest autoprefixer@latest
+npm install mysql2@latest
+npm install express@latest
+npm install bcrypt@latest
+npm install cors@latest
+npm install dotenv@latest
+npm install cookie-parser@latest
+npm install jsonwebtoken@latest
+npm install moment@latest
+npm install axios@latest
+npm install react-router-dom@latest
+npm install react-icons@latest
+npm install sonner@latest
+npm install framer-motion@latest
+npm install react-router-dom@latest
+```
+
+### 3. Database Setup
 1. Open your MySQL client (e.g., phpMyAdmin).
 2. Create a new database named `login_system`.
 3. Import the provided schema file: `server/schema.sql`.
    - *This will create the tables and a default Super Admin account.*
    - **Default Credentials**:
-     - Username: `admin`
+     - Email: `admin@local.com`
      - Password: `Admin@12`
 
-### 2. Install Dependencies
-```bash
-npm install
-```
-
-### 3. Environment Configuration
+### 4. Environment Configuration
 Create a `.env` file in the root directory (optional if using defaults in code, but recommended for production):
 ```env
 DB_HOST=localhost
@@ -80,7 +106,7 @@ DB_NAME=login_system
 PORT=3000
 ```
 
-### 4. Run the Application
+### 5. Run the Application
 You need to run both the backend and frontend servers.
 
 **Option A: Separate Terminals (Recommended)**
