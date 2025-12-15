@@ -218,6 +218,7 @@ app.post('/api/login', async (req, res) => {
 
         // Decrypt email for frontend
         user.email = decrypt(user.email);
+        user.restrictions = typeof user.restrictions === 'string' ? JSON.parse(user.restrictions) : user.restrictions;
         delete user.password_hash;
         delete user.email_hash;
 

@@ -1,5 +1,5 @@
 import { useAuth } from '../context/AuthContext';
-import { Users, ShieldCheck, Activity, Clock } from 'lucide-react';
+import { Users, ShieldCheck, Activity, Clock, Plus, Eye, Edit2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { mockApi } from '../services/mockApi';
 
@@ -83,9 +83,32 @@ export default function Dashboard() {
                             </a>
                         </div>
                     ) : (
-                        <p className="text-gray-500 max-w-md mx-auto">
-                            You have limited access. Contact the Super Admin if you need additional permissions.
-                        </p>
+                        <div className="flex flex-col items-center">
+                            <p className="text-gray-500 max-w-md mx-auto">
+                                You have limited access. Contact the Super Admin if you need additional permissions.
+                            </p>
+                            {/* Conditional Buttons based on restrictions */}
+                            <div className="mt-6 flex flex-wrap justify-center gap-3">
+                                {user.restrictions?.includes('add') && (
+                                    <button className="inline-flex items-center gap-2 bg-black text-white px-6 py-3 rounded-lg cursor-not-allowed opacity-80" title="Permission: Add User">
+                                        <Plus size={20} />
+                                        Add
+                                    </button>
+                                )}
+                                {user.restrictions?.includes('view') && (
+                                    <button className="inline-flex items-center gap-2 bg-gray-100 text-gray-700 border border-gray-200 px-6 py-3 rounded-lg cursor-not-allowed opacity-80" title="Permission: View Users">
+                                        <Eye size={20} />
+                                        View
+                                    </button>
+                                )}
+                                {user.restrictions?.includes('edit') && (
+                                    <button className="inline-flex items-center gap-2 bg-blue-50 text-blue-600 border border-blue-100 px-6 py-3 rounded-lg cursor-not-allowed opacity-80" title="Permission: Edit Users">
+                                        <Edit2 size={20} />
+                                        Edit
+                                    </button>
+                                )}
+                            </div>
+                        </div>
                     )}
                 </div>
             )}
